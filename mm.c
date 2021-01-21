@@ -35,6 +35,9 @@ team_t team = {
     ""};
 
 /* single word (4) or double word (8) alignment */
+//>>> github upload를 위해 변수 하나 추가했습니다! 이번주도 역시 너무 수고 많으셨어요!! <<<< //
+#define review_completed 1
+
 #define ALIGNMENT 8
 
 /* rounds up to the nearest multiple of ALIGNMENT */
@@ -63,6 +66,9 @@ team_t team = {
 /* Given block ptr bp, compute address of its header and footer */
 #define HDRP(bp) ((char *)(bp)-WSIZE)
 #define FTRP(bp) ((char *)(bp) + GET_SIZE(HDRP(bp)) - DSIZE)
+
+// >>>> 가용리스트의 이전 블럭과 다음 블럭을 찾아오는 함수를 메크로로 잘 짜신 것 같습니다. <<<<
+// >>>> 헤더를 기준으로 얼만큼 떨어진 블럭의 정보를 읽는지 잘 보여서 이해가 잘 됩니다! <<<<
 #define PRED_LOC(bp) ((char *)HDRP(bp) + WSIZE)
 #define SUCC_LOC(bp) ((char *)HDRP(bp) + DSIZE)
 #define PRED(bp) *(char **)(PRED_LOC(bp))
@@ -75,6 +81,9 @@ team_t team = {
 /* The only global variable is a pointer to the first block */
 static char *heap_listp;
 static char *root_succ;
+
+
+// >>>> 함수 헤드를 미리 선언해주셔서, 아래 코드를 읽을 때 함수들의 위치가 뒤죽박죽이지 않아서 읽기 편했습니다! (저희조는 섞었습니다ㅎㅎ)
 static void *extend_heap(size_t);
 static void *coalesce(void *);
 static void *find_fit(size_t);
@@ -86,18 +95,26 @@ static void place(void *, size_t);
 int mm_init(void)
 {
     /* Create the initial empty heap */
-    if ((heap_listp = mem_sbrk(6 * WSIZE)) == (void *)-1)
+    // >>>> 참고용으로 주어졌던 원래의 코드와 비교해서 볼 때,<<<<
+    if ((heap_listp = mem_sbrk(6 * WSIZE)) == (void *)-1)  
+    // >>>> 제일 처음 최소한의 공간을 heap에 할당 받아 올 때(92번줄) 가용리스트틀 위한 predecessor와 successor를 위해서 두 칸을 더 할당하고 <<<<
         return -1;
     PUT(heap_listp, 0);                                /* Alignment padding */
     PUT(heap_listp + (1 * WSIZE), PACK(2 * DSIZE, 1)); /* Prologue header */
-    PUT_ADDRESS(heap_listp + (2 * WSIZE), NULL);
+    
+    // >>>> 초기화 할 떄, 가용공간에 predecessor와 successor를 먼저 선언해 주신 것으로 보입니다! <<<<
+    PUT_ADDRESS(heap_listp + (2 * WSIZE), NULL);       
     PUT_ADDRESS(heap_listp + (3 * WSIZE), NULL);
+
     PUT(heap_listp + (4 * WSIZE), PACK(2 * DSIZE, 1)); /* Prologue footer */
     PUT(heap_listp + (5 * WSIZE), PACK(0, 1));         /* Epilogue header ** when find func, note endpoint */
     heap_listp += 2 * WSIZE;
 
+
     /* Extend the empty heap with a free block of CHUNKSIZE bytes */
-    if (extend_heap(CHUNKSIZE / WSIZE) == NULL)
+    if (extend_heap(CHUNKSIZE / WSIZE) == NULL)     // >>>> extend heap 시에 새로운 가용공간이 추가되면서 같은 첫번째 predecessor와 successor가 자동으로 만들어 질 수도 있을 것 같습니다.
+                                                    // 100,101줄은 꼭 하지는 않으셨어도 됐지 않았을까? 하는 생각이 들었습니다!
+                                                    // 꼭 필요할수도 있어요!!<<<<
         return -1;
 
     PUT_ADDRESS(SUCC_LOC(heap_listp), NEXT_BLKP(heap_listp));
@@ -106,6 +123,7 @@ int mm_init(void)
     return 0;
 }
 
+// >>>> 제 코드와 비슷해서 넘어갑니다! 코드 읽기 좋게 띄어쓰기 잘 하신 것 같아요.
 static void *extend_heap(size_t words)
 {
     char *bp;
@@ -134,6 +152,7 @@ static void *extend_heap(size_t words)
  * mm_malloc - Allocate a block by incrementing the brk pointer.
  *     Always allocate a block whose size is a multiple of the alignment.
  */
+// >>>> 여기도 넘어갑니닷!
 void *mm_malloc(size_t size)
 {
     size_t asize;      /* Adjusted block size */
@@ -184,6 +203,8 @@ static void *coalesce(void *bp)
 
     if (prev_alloc && next_alloc)
     { /* Case 1 */
+
+        // >>>> 참고를 위해 말씀 드리면! 제가 참고했던 explicit 코드들은 전부 coalesce에서 case1은 건드리지 않더라구요! 
         PUT_ADDRESS(SUCC_LOC(bp), SUCC(heap_listp));
         PUT_ADDRESS(PRED_LOC(bp), heap_listp);
 
@@ -199,6 +220,7 @@ static void *coalesce(void *bp)
         /* freed block's SUCC & freed block's PRED change */
         PUT_ADDRESS(PRED_LOC(SUCC(NEXT_BLKP(bp))), PRED(NEXT_BLKP(bp)));
         PUT_ADDRESS(SUCC_LOC(PRED(NEXT_BLKP(bp))), SUCC(NEXT_BLKP(bp)));
+
 
         size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
         PUT(HDRP(bp), PACK(size, 0));
@@ -217,6 +239,7 @@ static void *coalesce(void *bp)
         /* freed block's SUCC & freed block's PRED change */
         PUT_ADDRESS(PRED_LOC(SUCC(PREV_BLKP(bp))), PRED(PREV_BLKP(bp)));
         PUT_ADDRESS(SUCC_LOC(PRED(PREV_BLKP(bp))), SUCC(PREV_BLKP(bp)));
+
 
         size += GET_SIZE(HDRP(PREV_BLKP(bp)));
         PUT(FTRP(bp), PACK(size, 0));
@@ -281,12 +304,17 @@ void *mm_realloc(void *ptr, size_t size)
     return newptr;
 }
 
+
+
 static void *find_fit(size_t asize)
 {
     /* next-fit search */
     char *bp;
 
     // Search from next_fit to the end of the heap
+    // >>>> explicit에서 find fit 부분이 가용블럭들만을 읽어가면서 체크해야하는데
+    // >>>> heap을 모두 검사하면서 fit을 찾는 부분이 implicit과 유사해 보입니다!!
+    // >>>> 가용블럭만 조사하는 것으로 코드를 좀 바꿔야 하지 않을까? 하는 생각이 들어요 
     for (bp = heap_listp; GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp))
     {
         if (!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp))))
